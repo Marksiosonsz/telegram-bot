@@ -34,14 +34,14 @@ public class Main implements LongPollingSingleThreadUpdateConsumer {
 
         String text = update.getMessage().getText();
 
-        if (text.equals("/start")) {
+            if (text.equals("/start")) {
 
-            send(
-                    chatId,
-                    "🤖 Generator Bot\n\n" +
-                    "Use:\n" +
-                    "/gen ABCDEFGHIJ/AA/BB/CCC 5"
-            );
+    send(
+        chatId,
+        "🤖 Generator Bot\n\n" +
+        "VERSION: FILE-60-TEST\n\n" +
+        "60+ results = TXT FILE"
+    );
 
         } else if (text.equals("/help")) {
 
