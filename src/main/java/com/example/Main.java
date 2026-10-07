@@ -3,177 +3,249 @@ package com.example;
 import org.telegram.telegrambots.longpolling.TelegramBotsLongPollingApplication;
 import org.telegram.telegrambots.longpolling.util.LongPollingSingleThreadUpdateConsumer;
 import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient;
+import org.telegram.telegrambots.meta.api.methods.send.SendDocument;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.objects.InputFile;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.generics.TelegramClient;
 
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
+
 public class Main implements LongPollingSingleThreadUpdateConsumer {
 
-    private final TelegramClient telegramClient;
+```
+private final TelegramClient telegramClient;
 
-    public Main(String token) {
-        telegramClient = new OkHttpTelegramClient(token);
+public Main(String token) {
+    telegramClient = new OkHttpTelegramClient(token);
+}
+
+@Override
+public void consume(Update update) {
+
+    if (!update.hasMessage() || !update.getMessage().hasText()) {
+        return;
     }
 
-    @Override
-    public void consume(Update update) {
+    long chatId = update.getMessage().getChatId();
+    String text = update.getMessage().getText();
 
-        if (!update.hasMessage() || !update.getMessage().hasText()) {
+    String response;
+
+    if (text.equals("/start")) {
+
+        response =
+                "🤖 Generator Bot\n\n" +
+                "Use:\n" +
+                "/gen ABCDEFGHIJ/AA/BB/CCC 5";
+
+        send(chatId, response);
+
+    } else if (text.equals("/help")) {
+
+        response =
+                "Format:\n\n" +
+                "/gen BASE/AA/BB/CCC AMOUNT\n\n" +
+                "Example:\n" +
+                "/gen ABCDEFGHIJ/AA/BB/CCC 5";
+
+        send(chatId, response);
+
+    } else if (text.startsWith("/gen ")) {
+
+        generateAndSend(chatId, text);
+
+    } else {
+
+        response = "Unknown command. Use /help";
+        send(chatId, response);
+    }
+}
+
+private void generateAndSend(long chatId, String text) {
+
+    try {
+
+        String input = text.substring(5).trim();
+
+        String[] data = input.split("\\s+");
+
+        if (data.length != 2) {
+            send(chatId,
+                    "Usage:\n/gen ABCDEFGHIJ/AA/BB/CCC 5");
             return;
         }
 
-        long chatId = update.getMessage().getChatId();
-        String text = update.getMessage().getText();
+        String[] parts = data[0].split("/", -1);
 
-        String response;
+        if (parts.length != 4) {
+            send(chatId,
+                    "Format:\nBASE/AA/BB/CCC AMOUNT");
+            return;
+        }
 
-        if (text.equals("/start")) {
+        int amount = Integer.parseInt(data[1]);
 
-            response =
-                    "🤖 Generator Bot\n\n" +
-                    "Use:\n" +
-                    "/gen ABCDEFGHIJ/AA/BB/CCC 5";
+        if (amount < 1 || amount > 5000) {
+            send(chatId,
+                    "Amount must be between 1 and 5000.");
+            return;
+        }
 
-        } else if (text.equals("/help")) {
+        String base = parts[0];
 
-            response =
-                    "Format:\n\n" +
-                    "/gen BASE/AA/BB/CCC AMOUNT\n\n" +
-                    "Example:\n" +
-                    "/gen ABCDEFGHIJ/AA/BB/CCC 5";
+        if (base.length() > 16) {
+            send(chatId,
+                    "Base cannot exceed 16 characters.");
+            return;
+        }
 
-        } else if (text.startsWith("/gen ")) {
+        StringBuilder result = new StringBuilder();
 
-            response = generate(text);
+        for (int i = 0; i < amount; i++) {
+
+            String completed = completeTo16(base);
+
+            result.append(completed)
+                    .append("/")
+                    .append(parts[1])
+                    .append("/")
+                    .append(parts[2])
+                    .append("/")
+                    .append(parts[3]);
+
+            if (i < amount - 1) {
+                result.append("\n");
+            }
+        }
+
+        /*
+         * 60 or more results:
+         * Send as TXT file instead of a huge Telegram message.
+         */
+        if (amount >= 60) {
+
+            sendAsFile(chatId, result.toString());
 
         } else {
 
-            response = "Unknown command. Use /help";
+            send(chatId, result.toString());
         }
 
-        send(chatId, response);
+    } catch (NumberFormatException e) {
+
+        send(chatId, "Amount must be a number.");
+
+    } catch (Exception e) {
+
+        e.printStackTrace();
+        send(chatId, "Invalid command.");
+    }
+}
+
+private String completeTo16(String value) {
+
+    StringBuilder result = new StringBuilder(value);
+
+    String letters =
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+    while (result.length() < 16) {
+
+        int index =
+                (int) (Math.random() * letters.length());
+
+        result.append(letters.charAt(index));
     }
 
-    private String generate(String text) {
+    return result.toString();
+}
 
-        try {
+private void send(long chatId, String text) {
 
-            String input = text.substring(5).trim();
+    SendMessage message =
+            SendMessage.builder()
+                    .chatId(chatId)
+                    .text(text)
+                    .build();
 
-            String[] data = input.split("\\s+");
+    try {
 
-            if (data.length != 2) {
-                return "Usage:\n/gen ABCDEFGHIJ/AA/BB/CCC 5";
-            }
+        telegramClient.execute(message);
 
-            String[] parts = data[0].split("/", -1);
+    } catch (Exception e) {
 
-            if (parts.length != 4) {
-                return "Format:\nBASE/AA/BB/CCC AMOUNT";
-            }
-
-            int amount = Integer.parseInt(data[1]);
-
-            if (amount < 1 || amount > 5000) {
-                return "Amount must be between 1 and 5000.";
-            }
-
-            String base = parts[0];
-
-            if (base.length() > 16) {
-                return "Base cannot exceed 16 characters.";
-            }
-
-            StringBuilder result = new StringBuilder();
-
-            for (int i = 0; i < amount; i++) {
-
-                String completed = completeTo16(base);
-
-                result.append(completed)
-                      .append("/")
-                      .append(parts[1])
-                      .append("/")
-                      .append(parts[2])
-                      .append("/")
-                      .append(parts[3]);
-
-                if (i < amount - 1) {
-                    result.append("\n");
-                }
-            }
-
-            return result.toString();
-
-        } catch (NumberFormatException e) {
-
-            return "Amount must be a number.";
-
-        } catch (Exception e) {
-
-            return "Invalid command.";
-        }
+        e.printStackTrace();
     }
+}
 
-    private String completeTo16(String value) {
+private void sendAsFile(long chatId, String text) {
 
-        StringBuilder result = new StringBuilder(value);
+    try {
 
-        String letters =
-                "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        byte[] fileBytes =
+                text.getBytes(StandardCharsets.UTF_8);
 
-        while (result.length() < 16) {
+        ByteArrayInputStream inputStream =
+                new ByteArrayInputStream(fileBytes);
 
-            int index =
-                    (int) (Math.random() * letters.length());
+        InputFile inputFile =
+                new InputFile(
+                        inputStream,
+                        "generated.txt"
+                );
 
-            result.append(letters.charAt(index));
-        }
-
-        return result.toString();
-    }
-
-    private void send(long chatId, String text) {
-
-        SendMessage message =
-                SendMessage.builder()
+        SendDocument document =
+                SendDocument.builder()
                         .chatId(chatId)
-                        .text(text)
+                        .document(inputFile)
+                        .caption(
+                                "📄 Generated " +
+                                text.split("\n").length +
+                                " results."
+                        )
                         .build();
 
-        try {
-            telegramClient.execute(message);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        telegramClient.execute(document);
+
+    } catch (Exception e) {
+
+        e.printStackTrace();
+
+        send(chatId,
+                "❌ Failed to send the generated file.");
+    }
+}
+
+public static void main(String[] args) {
+
+    String token = System.getenv("BOT_TOKEN");
+
+    if (token == null || token.isEmpty()) {
+        System.out.println("BOT_TOKEN is missing.");
+        return;
     }
 
-    public static void main(String[] args) {
+    try {
 
-        String token = System.getenv("BOT_TOKEN");
+        TelegramBotsLongPollingApplication application =
+                new TelegramBotsLongPollingApplication();
 
-        if (token == null || token.isEmpty()) {
-            System.out.println("BOT_TOKEN is missing.");
-            return;
-        }
+        application.registerBot(
+                token,
+                new Main(token)
+        );
 
-        try {
+        System.out.println("Bot is running!");
 
-            TelegramBotsLongPollingApplication application =
-                    new TelegramBotsLongPollingApplication();
+        Thread.currentThread().join();
 
-            application.registerBot(
-                    token,
-                    new Main(token)
-            );
+    } catch (Exception e) {
 
-            System.out.println("Bot is running!");
-
-            Thread.currentThread().join();
-
-        } catch (Exception e) {
-
-            e.printStackTrace();
-        }
+        e.printStackTrace();
     }
+}
+```
+
 }
