@@ -197,7 +197,7 @@ public class Main implements LongPollingSingleThreadUpdateConsumer {
                 new StringBuilder(value);
 
         String letters =
-                "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+                "ABCDEFGHIJKLMNOPQRS1234567890TUVWXYZ";
 
         while (result.length() < 16) {
 
